@@ -1,43 +1,43 @@
 // src/App.tsx
-import { Link, Route, Routes } from "react-router-dom";
+import { useAuth0 } from "@auth0/auth0-react";
+import { Navigate, Route, Routes } from "react-router-dom";
+import Layout from "./layouts/Layout";
+import Attendance from "./pages/Attendance";
+import Contact from "./pages/Contact";
+import ContactList from "./pages/ContactList";
+import DateRequests from "./pages/DateRequest";
+import DateRequestList from "./pages/DateRequestList";
+import Items from "./pages/Items";
+import Profile from "./pages/Profile";
+import Tasks from "./pages/Tasks";
 
-function Home() {
-  return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="text-xl font-semibold">勤怠アプリ</h1>
-      <p className="mt-2 text-sm text-slate-600">
-        まずは pages だけで作っていきます。
-      </p>
+function HomeRedirect() {
+  const { isAuthenticated, isLoading } = useAuth0();
 
-      <div className="mt-4">
-        <Link className="text-sm text-blue-600 underline" to="/attendance">
-          勤怠ページへ
-        </Link>
-      </div>
-    </div>
-  );
-}
+  // 判定中に一瞬 /contact が見えるのが嫌なら、ここで止める
+  if (isLoading) return null;
 
-function AttendancePage() {
-  return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <h2 className="text-lg font-semibold">勤怠</h2>
-      <p className="mt-2 text-sm text-slate-600">ここから作り込みます。</p>
+  // ログイン済みなら /attendance へ
+  if (isAuthenticated) return <Navigate to="/attendance" replace />;
 
-      <div className="mt-4">
-        <Link className="text-sm text-blue-600 underline" to="/">
-          戻る
-        </Link>
-      </div>
-    </div>
-  );
+  // 未ログインなら /（= Contact）を表示
+  return <Contact />;
 }
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/attendance" element={<AttendancePage />} />
+      <Route path="/" element={<Layout />}>
+        <Route index element={<HomeRedirect />} />
+        <Route path="contacts/list" element={<ContactList />} />
+        <Route path="attendance" element={<Attendance />} />
+        <Route path="tasks" element={<Tasks />} />
+        <Route path="items" element={<Items />} />
+        <Route path="date-requests" element={<DateRequests />} />
+        <Route path="date-requests/list" element={<DateRequestList />} />
+        <Route path="profile" element={<Profile />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
     </Routes>
   );
 }
