@@ -1,52 +1,126 @@
 // src/pages/Attendance.tsx
-import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState } from "react";
+import AttendanceListView from "../components/attendance/AttendanceListView";
 import AttendanceView from "../components/attendance/AttendanceView";
+import TimeRequestModal from "../components/attendance/TimeRequestModal";
+import { useAttendanceActions } from "../hooks/attendance/useAttendanceActions";
+import { useAttendanceLists } from "../hooks/attendance/useAttendanceLists";
+import { useAuthToken } from "../hooks/useAuthToken";
 import type { Attendance } from "../types/attendance";
 
 export default function AttendancePage() {
-  const { isAuthenticated, loginWithRedirect, getAccessTokenSilently } =
-    useAuth0();
+  const { isAuthenticated } = useAuthToken();
 
-  const [today, setToday] = useState<Attendance | null>(null);
+  // 今日の勤怠 + 休憩 + 操作（出勤/退勤/休憩）
+  const {
+    today,
+    breaks,
+    loading,
+    error,
+    reloadAll,
+    checkIn,
+    checkOut,
+    startBreak,
+    endBreak,
+    canCheckIn,
+    canCheckOut,
+    canStartBreak,
+    canEndBreak,
+  } = useAttendanceActions();
 
-  async function load() {
-    const token = await getAccessTokenSilently();
+  // 勤怠一覧（ページング）
+  const {
+    items,
+    loading: listLoading,
+    error: listError,
+    page,
+    lastPage,
+    total,
+    load,
+    setPage,
+  } = useAttendanceLists();
 
-    const res = await fetch("/api/attendances/today", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const data = (await res.json()) as Attendance | null;
-    setToday(data);
-  }
+  // モーダル制御
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selected, setSelected] = useState<Attendance | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      void load();
-    }
+    if (!isAuthenticated) return;
+
+    void reloadAll();
+    setPage(1);
+    void load(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
-  if (!isAuthenticated) {
-    return (
-      <div className="p-4">
-        <button
-          className="rounded border px-3 py-1"
-          onClick={() => loginWithRedirect()}
-        >
-          ログイン
-        </button>
-      </div>
-    );
+  // ルーティング側でガード済み前提なので、ここでは何も出さない
+  if (!isAuthenticated) return null;
+
+  async function handleReloadAll() {
+    await reloadAll();
+    await load(page);
+  }
+
+  function handleGoPage(p: number) {
+    if (p < 1) return;
+    if (lastPage && p > lastPage) return;
+
+    setPage(p);
+    void load(p);
+  }
+
+  function openTimeRequestModal(attendance: Attendance) {
+    setSelected(attendance);
+    setModalOpen(true);
+  }
+
+  function closeTimeRequestModal() {
+    setModalOpen(false);
+    setSelected(null);
+  }
+
+  async function handleSubmitted() {
+    // 申請成功後：今日と一覧を再取得
+    await reloadAll();
+    await load(page);
   }
 
   return (
-    <div className="p-4">
-      <button className="rounded border px-3 py-1" onClick={() => void load()}>
-        再読込
-      </button>
+    <div className="space-y-6">
+      <AttendanceView
+        today={today}
+        breaks={breaks}
+        loading={loading}
+        error={error}
+        onReload={() => void handleReloadAll()}
+        onCheckIn={() => void checkIn()}
+        onCheckOut={() => void checkOut()}
+        onStartBreak={() => void startBreak()}
+        onEndBreak={() => void endBreak()}
+        canCheckIn={canCheckIn}
+        canCheckOut={canCheckOut}
+        canStartBreak={canStartBreak}
+        canEndBreak={canEndBreak}
+      />
 
-      <AttendanceView today={today} />
+      <AttendanceListView
+        items={items}
+        loading={listLoading}
+        error={listError}
+        page={page}
+        lastPage={lastPage}
+        total={total}
+        onReload={() => void load(page)}
+        onGoPage={(p) => handleGoPage(p)}
+        onOpenTimeRequest={(a) => openTimeRequestModal(a)}
+      />
+
+      <TimeRequestModal
+        open={modalOpen}
+        attendance={selected}
+        onClose={closeTimeRequestModal}
+        onSubmitted={() => void handleSubmitted()}
+      />
     </div>
   );
 }

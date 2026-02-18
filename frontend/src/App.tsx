@@ -10,6 +10,7 @@ import DateRequestList from "./pages/DateRequestList";
 import Items from "./pages/Items";
 import Profile from "./pages/Profile";
 import Tasks from "./pages/Tasks";
+import TimeRequestList from "./pages/TimeRequestList";
 
 function HomeRedirect() {
   const { isAuthenticated, isLoading } = useAuth0();
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="items" element={<Items />} />
         <Route path="date-requests" element={<DateRequests />} />
         <Route path="date-requests/list" element={<DateRequestList />} />
+        <Route path="time-requests/list" element={<TimeRequestList />} />
         <Route path="profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

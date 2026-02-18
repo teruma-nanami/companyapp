@@ -1,348 +1,353 @@
 // src/pages/Tasks.tsx
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import TaskModal from "../components/tasks/TaskModal";
+import { useTaskModal } from "../hooks/task/useTaskModal";
+import { useTasks } from "../hooks/task/useTasks";
 import type { Task } from "../types/task";
 import { normalizeDateOnly, showOrDash } from "../utils/normalize";
 
-type ApiEnvelope<T> = {
-  data: T;
-  message: string;
-};
+function statusLabel(s: Task["status"]): string {
+  if (s === "todo") return "TODO";
+  if (s === "in_progress") return "進行中";
+  return "完了";
+}
+
+function badgeClass(s: Task["status"]): string {
+  if (s === "todo") return "bg-slate-100 text-slate-700 ring-slate-200";
+  if (s === "in_progress")
+    return "bg-indigo-50 text-indigo-700 ring-indigo-200";
+  return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+}
 
 export default function Tasks() {
-  const { isAuthenticated, loginWithRedirect, getAccessTokenSilently } =
-    useAuth0();
+  const { isAuthenticated, loginWithRedirect } = useAuth0();
 
-  const [items, setItems] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const tasks = useTasks(isAuthenticated);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [dueDate, setDueDate] = useState(""); // input[type=date]
-
-  async function load() {
-    if (!isAuthenticated) {
-      setError("ログインが必要です（/api/tasks は認証必須）");
-      setItems([]);
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    const token = await getAccessTokenSilently();
-
-    fetch("/api/tasks", {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(t || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
-      .then((json: ApiEnvelope<Task[]>) => {
-        setItems(json?.data ?? []);
-      })
-      .catch((e: any) => {
-        setError(e?.message ?? "failed to load");
-        setItems([]);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }
-
-  async function createTask() {
-    if (!isAuthenticated) return;
-
-    const t = title.trim();
-    if (!t) {
-      setError("タイトルは必須です");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-
-    const token = await getAccessTokenSilently();
-
-    const payload: {
-      title: string;
-      description?: string;
-      due_date?: string;
-      status?: string;
-    } = {
-      title: t,
-      status: "todo",
-    };
-
-    const d = description.trim();
-    if (d) payload.description = d;
-
-    // due_date は "YYYY-MM-DD" をそのまま送る（Laravel casts: date）
-    if (dueDate) payload.due_date = dueDate;
-
-    fetch("/api/tasks", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t2) => {
-            throw new Error(t2 || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
-      .then(() => {
-        setTitle("");
-        setDescription("");
-        setDueDate("");
-        return load();
-      })
-      .catch((e: any) => {
-        setError(e?.message ?? "failed to create");
-      })
-      .finally(() => {
-        setSaving(false);
-      });
-  }
-
-  async function updateStatus(taskId: number, next: Task["status"]) {
-    if (!isAuthenticated) return;
-
-    setSaving(true);
-    setError("");
-
-    const token = await getAccessTokenSilently();
-
-    fetch(`/api/tasks/${taskId}`, {
-      method: "PUT",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ status: next }),
-    })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(t || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
-      .then(() => load())
-      .catch((e: any) => {
-        setError(e?.message ?? "failed to update");
-      })
-      .finally(() => {
-        setSaving(false);
-      });
-  }
-
-  async function deleteTask(taskId: number) {
-    if (!isAuthenticated) return;
-
-    setSaving(true);
-    setError("");
-
-    const token = await getAccessTokenSilently();
-
-    fetch(`/api/tasks/${taskId}`, {
-      method: "DELETE",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(t || `Request failed: ${res.status}`);
-          });
-        }
-        return null;
-      })
-      .then(() => load())
-      .catch((e: any) => {
-        setError(e?.message ?? "failed to delete");
-      })
-      .finally(() => {
-        setSaving(false);
-      });
-  }
+  const modal = useTaskModal({
+    saving: tasks.saving,
+    create: tasks.create,
+  });
 
   useEffect(() => {
-    void load();
+    tasks.load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
   if (!isAuthenticated) {
     return (
-      <div className="p-4">
-        <h1 className="text-lg font-bold">Tasks</h1>
-        <p className="mt-2 text-sm">タスク一覧はログインが必要です。</p>
-        <button
-          className="mt-3 rounded border px-3 py-1 text-sm"
-          onClick={() => loginWithRedirect()}
-        >
-          ログイン
-        </button>
-        {error && (
-          <p className="mt-3 text-sm" style={{ color: "crimson" }}>
-            Error: {error}
+      <div className="p-6">
+        <div className="mx-auto max-w-3xl rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5">
+          <h1 className="text-lg font-semibold text-slate-900">Tasks</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            タスク一覧はログインが必要です。
           </p>
-        )}
+
+          <div className="mt-4">
+            <button
+              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              onClick={() => loginWithRedirect()}
+            >
+              ログイン
+            </button>
+          </div>
+
+          {tasks.error ? (
+            <div className="mt-4 rounded-xl bg-red-50 px-4 py-3 ring-1 ring-red-200">
+              <div className="text-xs font-semibold text-red-700">Error</div>
+              <div className="mt-0.5 text-sm text-red-700">{tasks.error}</div>
+            </div>
+          ) : null}
+        </div>
       </div>
     );
   }
 
+  const todo = tasks.items.filter((t) => t.status === "todo");
+  const inProgress = tasks.items.filter((t) => t.status === "in_progress");
+  const done = tasks.items.filter((t) => t.status === "done");
+
+  const btnGhost =
+    "rounded-xl px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50";
+  const btnPrimary =
+    "rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50";
+  const btnMini =
+    "rounded-md px-2.5 py-1.5 text-xs font-semibold ring-1 ring-inset disabled:opacity-50";
+  const btnMiniGhost =
+    "rounded-md px-2.5 py-1.5 text-xs font-semibold ring-1 ring-inset ring-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50";
+  const btnMiniDanger =
+    "rounded-md px-2.5 py-1.5 text-xs font-semibold ring-1 ring-inset ring-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50";
+
   return (
-    <div className="p-4">
-      <h1 className="text-lg font-bold">Tasks（超シンプル）</h1>
+    <div className="min-h-[calc(100vh-64px)] bg-gradient-to-b from-slate-50 to-white p-6">
+      <div className="mx-auto w-full max-w-[1100px] space-y-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+              Tasks
+            </h1>
+            <div className="mt-2 text-sm text-slate-600">
+              追加はモーダルから。状態変更はカードのボタンで行います。
+            </div>
+          </div>
 
-      <div className="mt-3 flex flex-wrap items-end gap-2">
-        <div>
-          <div className="text-xs text-slate-600">title *</div>
-          <input
-            className="mt-1 w-64 rounded border px-2 py-1 text-sm"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="例）買い物に行く"
-          />
+          <div className="flex items-center gap-2">
+            <button
+              className={btnPrimary}
+              onClick={modal.openCreateModal}
+              disabled={tasks.saving}
+            >
+              追加
+            </button>
+
+            <button
+              className={btnGhost}
+              onClick={tasks.load}
+              disabled={tasks.loading}
+            >
+              {tasks.loading ? "読み込み中..." : "再読込"}
+            </button>
+          </div>
         </div>
 
-        <div>
-          <div className="text-xs text-slate-600">description</div>
-          <input
-            className="mt-1 w-80 rounded border px-2 py-1 text-sm"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="任意"
-          />
-        </div>
+        {tasks.error ? (
+          <div className="rounded-2xl bg-red-50 px-4 py-3 ring-1 ring-red-200">
+            <div className="text-xs font-semibold text-red-700">Error</div>
+            <div className="mt-0.5 text-sm text-red-700">{tasks.error}</div>
+          </div>
+        ) : null}
 
-        <div>
-          <div className="text-xs text-slate-600">due_date</div>
-          <input
-            className="mt-1 rounded border px-2 py-1 text-sm"
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-          />
-        </div>
+        <div className="gap-4">
+          {/* TODO */}
+          <section className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClass(
+                    "todo",
+                  )}`}
+                >
+                  {statusLabel("todo")}
+                </span>
+                <span className="text-xs text-slate-500">{todo.length} 件</span>
+              </div>
+            </div>
 
-        <button
-          className="rounded border px-3 py-1 text-sm"
-          onClick={createTask}
-          disabled={saving}
-        >
-          {saving ? "処理中..." : "追加"}
-        </button>
+            <div className="px-4 pb-4">
+              {todo.length === 0 ? (
+                <div className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-600 ring-1 ring-slate-900/5">
+                  なし
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-900/5 overflow-hidden rounded-xl ring-1 ring-slate-900/5">
+                  {todo.map((t) => (
+                    <div key={t.id} className="bg-white px-3 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-slate-900">
+                            {t.title}
+                          </div>
+                          {t.due_date ? (
+                            <div className="mt-1 text-xs text-slate-500">
+                              期限: {showOrDash(normalizeDateOnly(t.due_date))}
+                            </div>
+                          ) : null}
+                        </div>
 
-        <button
-          className="rounded border px-3 py-1 text-sm"
-          onClick={() => void load()}
-          disabled={loading}
-        >
-          {loading ? "読み込み中..." : "再読込"}
-        </button>
-      </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            className={`${btnMini} bg-indigo-50 text-indigo-700 ring-indigo-200 hover:bg-indigo-100`}
+                            disabled={tasks.saving}
+                            onClick={() => tasks.updateStatus(t, "in_progress")}
+                          >
+                            進行中
+                          </button>
+                          <button
+                            className={`${btnMini} bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100`}
+                            disabled={tasks.saving}
+                            onClick={() => tasks.updateStatus(t, "done")}
+                          >
+                            完了
+                          </button>
+                          <button
+                            className={btnMiniDanger}
+                            disabled={tasks.saving}
+                            onClick={() => tasks.remove(t.id)}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
 
-      {error && (
-        <p className="mt-3 text-sm" style={{ color: "crimson" }}>
-          Error: {error}
-        </p>
-      )}
-
-      <div className="mt-4 overflow-auto rounded border bg-white">
-        <table className="min-w-[900px] w-full text-left text-sm">
-          <thead>
-            <tr className="border-b">
-              <th className="p-2">id</th>
-              <th className="p-2">title</th>
-              <th className="p-2">status</th>
-              <th className="p-2">due_date</th>
-              <th className="p-2">actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {items.map((t) => (
-              <tr key={t.id} className="border-b">
-                <td className="p-2">{t.id}</td>
-                <td className="p-2">
-                  <div className="font-medium">{t.title}</div>
-                  {t.description ? (
-                    <div className="mt-1 text-xs text-slate-600">
-                      {t.description}
+                      {t.description ? (
+                        <div className="mt-2 text-xs text-slate-600 line-clamp-2">
+                          {t.description}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </td>
-                <td className="p-2">{t.status}</td>
-                <td className="p-2">
-                  {showOrDash(normalizeDateOnly(t.due_date))}
-                </td>
-                <td className="p-2">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
-                      disabled={saving}
-                      onClick={() => updateStatus(t.id, "todo")}
-                    >
-                      todo
-                    </button>
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
-                      disabled={saving}
-                      onClick={() => updateStatus(t.id, "in_progress")}
-                    >
-                      in_progress
-                    </button>
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
-                      disabled={saving}
-                      onClick={() => updateStatus(t.id, "done")}
-                    >
-                      done
-                    </button>
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
-                      disabled={saving}
-                      onClick={() => deleteTask(t.id)}
-                    >
-                      delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
 
-            {items.length === 0 && !loading && !error && (
-              <tr>
-                <td className="p-2" colSpan={5}>
-                  データなし
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+          {/* in_progress */}
+          <section className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClass(
+                    "in_progress",
+                  )}`}
+                >
+                  {statusLabel("in_progress")}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {inProgress.length} 件
+                </span>
+              </div>
+            </div>
+
+            <div className="px-4 pb-4">
+              {inProgress.length === 0 ? (
+                <div className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-600 ring-1 ring-slate-900/5">
+                  なし
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-900/5 overflow-hidden rounded-xl ring-1 ring-slate-900/5">
+                  {inProgress.map((t) => (
+                    <div key={t.id} className="bg-white px-3 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-slate-900">
+                            {t.title}
+                          </div>
+                          {t.due_date ? (
+                            <div className="mt-1 text-xs text-slate-500">
+                              期限: {showOrDash(normalizeDateOnly(t.due_date))}
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            className={btnMiniGhost}
+                            disabled={tasks.saving}
+                            onClick={() => tasks.updateStatus(t, "todo")}
+                          >
+                            TODO
+                          </button>
+                          <button
+                            className={`${btnMini} bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100`}
+                            disabled={tasks.saving}
+                            onClick={() => tasks.updateStatus(t, "done")}
+                          >
+                            完了
+                          </button>
+                          <button
+                            className={btnMiniDanger}
+                            disabled={tasks.saving}
+                            onClick={() => tasks.remove(t.id)}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+
+                      {t.description ? (
+                        <div className="mt-2 text-xs text-slate-600 line-clamp-2">
+                          {t.description}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* done */}
+          <section className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClass(
+                    "done",
+                  )}`}
+                >
+                  {statusLabel("done")}
+                </span>
+                <span className="text-xs text-slate-500">{done.length} 件</span>
+              </div>
+            </div>
+
+            <div className="px-4 pb-4">
+              {done.length === 0 ? (
+                <div className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-600 ring-1 ring-slate-900/5">
+                  なし
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-900/5 overflow-hidden rounded-xl ring-1 ring-slate-900/5">
+                  {done.map((t) => (
+                    <div key={t.id} className="bg-white px-3 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-slate-900">
+                            {t.title}
+                          </div>
+                          {t.due_date ? (
+                            <div className="mt-1 text-xs text-slate-500">
+                              期限: {showOrDash(normalizeDateOnly(t.due_date))}
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            className={btnMiniGhost}
+                            disabled={tasks.saving}
+                            onClick={() => tasks.updateStatus(t, "in_progress")}
+                          >
+                            進行中
+                          </button>
+                          <button
+                            className={btnMiniGhost}
+                            disabled={tasks.saving}
+                            onClick={() => tasks.updateStatus(t, "todo")}
+                          >
+                            TODO
+                          </button>
+                          <button
+                            className={btnMiniDanger}
+                            disabled={tasks.saving}
+                            onClick={() => tasks.remove(t.id)}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+
+                      {t.description ? (
+                        <div className="mt-2 text-xs text-slate-600 line-clamp-2">
+                          {t.description}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <TaskModal
+          open={modal.open}
+          onClose={modal.closeCreateModal}
+          saving={tasks.saving}
+          error={modal.error}
+          onSubmit={modal.submit}
+        />
       </div>
     </div>
   );
