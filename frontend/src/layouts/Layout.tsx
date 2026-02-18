@@ -1,66 +1,14 @@
 // src/layouts/Layout.tsx
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useState } from "react";
 import { Link, Outlet } from "react-router-dom";
-
-type Profile = {
-  id: number;
-  auth0_user_id: string;
-  email: string;
-  display_name: string | null;
-  role: string;
-  created_at?: string;
-  updated_at?: string;
-};
+import { useProfile } from "../hooks/profile/useProfile";
 
 export default function Layout() {
-  const {
-    isAuthenticated,
-    loginWithRedirect,
-    logout,
-    isLoading,
-    getAccessTokenSilently,
-  } = useAuth0();
-
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setProfile(null);
-      return;
-    }
-
-    setProfileLoading(true);
-
-    getAccessTokenSilently()
-      .then((token) => {
-        return fetch("/api/profile", {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      })
-      .then((res) => res.json())
-      .then((json) => {
-        const p =
-          json && typeof json === "object" && "data" in json
-            ? (json as any).data
-            : json;
-
-        setProfile((p ?? null) as Profile | null);
-      })
-      .finally(() => {
-        setProfileLoading(false);
-      });
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+  const { logout, isLoading } = useAuth0();
+  const prof = useProfile();
 
   function onLogin() {
-    loginWithRedirect();
+    prof.loginWithRedirect();
   }
 
   function onLogout() {
@@ -68,9 +16,11 @@ export default function Layout() {
   }
 
   const displayName =
-    (profile?.display_name && profile.display_name.trim()) ||
-    (profile?.email && profile.email.trim()) ||
+    (prof.me?.display_name && prof.me.display_name.trim()) ||
+    (prof.me?.email && prof.me.email.trim()) ||
     "";
+
+  const isAdmin = prof.me?.role === "admin";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -84,10 +34,10 @@ export default function Layout() {
           <div className="flex items-center gap-3">
             {isLoading ? (
               <span className="text-sm opacity-90">Loading...</span>
-            ) : isAuthenticated ? (
+            ) : prof.isAuthenticated ? (
               <>
                 <span className="text-sm font-semibold opacity-95">
-                  {profileLoading
+                  {prof.loading
                     ? "プロフィール取得中..."
                     : displayName || "ログイン中"}
                 </span>
@@ -111,7 +61,7 @@ export default function Layout() {
       </header>
 
       {/* 未ログイン：メニュー全非表示 */}
-      {!isAuthenticated ? (
+      {!prof.isAuthenticated ? (
         <div className="mx-auto px-6 py-8">
           <div className="mx-auto w-full max-w-[769px]">
             <Outlet />
@@ -163,16 +113,10 @@ export default function Layout() {
                 </Link>
 
                 <Link
-                  to="/date-requests/list"
+                  to="/documents"
                   className="mt-1 block rounded px-3 py-3 font-semibold text-white hover:bg-white/10"
                 >
-                  休日申請一覧
-                </Link>
-                <Link
-                  to="/time-requests/list"
-                  className="mt-1 block rounded px-3 py-3 font-semibold text-white hover:bg-white/10"
-                >
-                  時刻修正申請一覧
+                  書類
                 </Link>
 
                 <Link
@@ -181,6 +125,24 @@ export default function Layout() {
                 >
                   プロフィール
                 </Link>
+
+                {/* admin only（プロフィールの下でOK） */}
+                {isAdmin ? (
+                  <>
+                    <Link
+                      to="/date-requests/list"
+                      className="mt-1 block rounded px-3 py-3 font-semibold text-white hover:bg-white/10"
+                    >
+                      休日申請一覧
+                    </Link>
+                    <Link
+                      to="/time-requests/list"
+                      className="mt-1 block rounded px-3 py-3 font-semibold text-white hover:bg-white/10"
+                    >
+                      時刻修正申請一覧
+                    </Link>
+                  </>
+                ) : null}
               </nav>
             </div>
           </aside>

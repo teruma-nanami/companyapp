@@ -7,6 +7,7 @@ import Contact from "./pages/Contact";
 import ContactList from "./pages/ContactList";
 import DateRequests from "./pages/DateRequest";
 import DateRequestList from "./pages/DateRequestList";
+import Documents from "./pages/Documents";
 import Items from "./pages/Items";
 import Profile from "./pages/Profile";
 import Tasks from "./pages/Tasks";
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="tasks" element={<Tasks />} />
         <Route path="items" element={<Items />} />
         <Route path="date-requests" element={<DateRequests />} />
+        <Route path="documents" element={<Documents />} />
         <Route path="date-requests/list" element={<DateRequestList />} />
         <Route path="time-requests/list" element={<TimeRequestList />} />
         <Route path="profile" element={<Profile />} />
