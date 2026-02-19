@@ -1,26 +1,25 @@
 // src/hooks/contacts/useContactDetails.ts
 import { useState } from "react";
 import type { Contact } from "../../types/contact";
+import { readErrorMessage } from "../../utils/message";
+import { unwrapData } from "../../utils/unwrap";
 import { useAuthToken } from "../useAuthToken";
 
 export function useContactDetails() {
   const { authFetch } = useAuthToken();
-
   const [status, setStatus] = useState("");
   const [assignedUserId, setAssignedUserId] = useState(""); // 空なら未割当
   const [internalNote, setInternalNote] = useState("");
-
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // ★ フォーム初期化だけ（saving/error は触らない）
   function resetFromContact(contact: Contact) {
-    setStatus(contact.status ?? "");
+    setStatus(String(contact.status ?? ""));
     setAssignedUserId(
       contact.assigned_user_id ? String(contact.assigned_user_id) : "",
     );
-    setInternalNote(contact.internal_note ?? "");
-    setSaving(false);
-    setError("");
+    setInternalNote(String(contact.internal_note ?? ""));
   }
 
   function clearError() {
@@ -58,21 +57,12 @@ export function useContactDetails() {
         internal_note: internalNote,
       }),
     })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(t || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await readErrorMessage(res));
+        return (await res.json()) as unknown;
       })
       .then((json) => {
-        const updated = (
-          json && typeof json === "object" && "data" in json
-            ? (json as any).data
-            : json
-        ) as Contact;
-
+        const updated = unwrapData<Contact>(json);
         onUpdated?.(updated);
       })
       .catch((e: any) => {

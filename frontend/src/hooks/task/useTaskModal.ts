@@ -1,12 +1,13 @@
 // src/hooks/useTaskModal.ts
 import { useState } from "react";
+import type { Task } from "../../types/task";
 
 export function useTaskModal(params: {
   saving: boolean;
   create: (input: {
-    title: string;
-    description?: string;
-    due_date?: string;
+    title: Task["title"];
+    description?: Task["description"];
+    due_date?: Task["due_date"];
   }) => Promise<void>;
 }) {
   const { saving, create } = params;
@@ -26,9 +27,9 @@ export function useTaskModal(params: {
   }
 
   function submit(input: {
-    title: string;
-    description?: string;
-    due_date?: string;
+    title: Task["title"];
+    description?: Task["description"];
+    due_date?: Task["due_date"];
   }): void {
     const title = String(input.title ?? "").trim();
     if (!title) {
@@ -40,8 +41,8 @@ export function useTaskModal(params: {
 
     create({
       title,
-      description: input.description,
-      due_date: input.due_date,
+      description: input.description ?? null,
+      due_date: input.due_date ?? null,
     })
       .then(() => {
         setOpen(false);

@@ -1,5 +1,5 @@
 // src/components/contacts/ContactListView.tsx
-import { useContactLists } from "../../hooks/contact/useContactLists";
+import { useContactListView } from "../../hooks/contact/useContactListView";
 import type { Contact } from "../../types/contact";
 import ContactModal from "./ContactModal";
 
@@ -10,18 +10,40 @@ type Props = {
 };
 
 export default function ContactListView({ items, loading, error }: Props) {
-  const {
-    viewItems,
-    count,
-    open,
-    selected,
-    openModal,
-    closeModal,
-    applyUpdated,
-    categoryLabel,
-    statusLabel,
-    badgeClass,
-  } = useContactLists(items);
+  const { viewItems, open, selected, openModal, closeModal, applyUpdated } =
+    useContactListView(items);
+
+  function categoryLabel(category: string): string {
+    if (category === "bug") return "不具合";
+    if (category === "request") return "要望";
+    if (category === "other") return "その他";
+    return category;
+  }
+
+  function statusLabel(status: string): string {
+    if (status === "new") return "新規";
+    if (status === "open") return "対応中";
+    if (status === "in_progress") return "対応中";
+    if (status === "closed") return "完了";
+    return status;
+  }
+
+  function categoryBadgeClass(category: string): string {
+    if (category === "bug") return "bg-red-50 text-red-700 ring-red-200";
+    if (category === "request") return "bg-blue-50 text-blue-700 ring-blue-200";
+    return "bg-slate-100 text-slate-700 ring-slate-200";
+  }
+
+  function statusBadgeClass(status: string): string {
+    if (status === "new") return "bg-amber-50 text-amber-700 ring-amber-200";
+    if (status === "open")
+      return "bg-indigo-50 text-indigo-700 ring-indigo-200";
+    if (status === "in_progress")
+      return "bg-indigo-50 text-indigo-700 ring-indigo-200";
+    if (status === "closed")
+      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+    return "bg-slate-100 text-slate-700 ring-slate-200";
+  }
 
   return (
     <section className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5">
@@ -31,7 +53,6 @@ export default function ContactListView({ items, loading, error }: Props) {
             お問い合わせ一覧
           </h2>
           <div className="mt-0.5 text-xs text-slate-500">
-            件数: <span className="font-semibold text-slate-900">{count}</span>
             {loading ? (
               <span className="ml-2 text-slate-500">読み込み中...</span>
             ) : null}
@@ -93,8 +114,7 @@ export default function ContactListView({ items, loading, error }: Props) {
 
                     <td className="px-3 py-2.5">
                       <span
-                        className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClass(
-                          "category",
+                        className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${categoryBadgeClass(
                           c.category,
                         )}`}
                       >
@@ -104,8 +124,7 @@ export default function ContactListView({ items, loading, error }: Props) {
 
                     <td className="px-3 py-2.5">
                       <span
-                        className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClass(
-                          "status",
+                        className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${statusBadgeClass(
                           c.status,
                         )}`}
                       >

@@ -7,12 +7,7 @@ type Props = {
   loading: boolean;
   error: string;
 
-  page: number;
-  lastPage: number;
-  total: number;
-
   onReload: () => void;
-  onGoPage: (p: number) => void;
 
   onOpenTimeRequest: (attendance: Attendance) => void;
 };
@@ -25,28 +20,16 @@ export default function AttendanceListView({
   items,
   loading,
   error,
-  page,
-  lastPage,
-  total,
+
   onReload,
-  onGoPage,
+
   onOpenTimeRequest,
 }: Props) {
-  const canPrev = page > 1 && !loading;
-  const canNext = page < lastPage && !loading;
-
   return (
     <div className="rounded-2xl border border-slate-200/70 bg-white shadow-[0_1px_0_rgba(15,23,42,0.04)]">
       <div className="flex items-center justify-between border-b border-slate-200/70 px-6 py-4">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">勤怠一覧</h2>
-          <p className="mt-1 text-xs text-slate-600">
-            件数: <span className="font-semibold text-slate-900">{total}</span>
-            ／ページ:{" "}
-            <span className="font-semibold text-slate-900">
-              {page}/{lastPage || 1}
-            </span>
-          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -56,22 +39,6 @@ export default function AttendanceListView({
             disabled={loading}
           >
             {loading ? "読み込み中..." : "再読込"}
-          </button>
-
-          <button
-            className="rounded-md border px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50"
-            onClick={() => onGoPage(page - 1)}
-            disabled={!canPrev}
-          >
-            前へ
-          </button>
-
-          <button
-            className="rounded-md border px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50"
-            onClick={() => onGoPage(page + 1)}
-            disabled={!canNext}
-          >
-            次へ
           </button>
         </div>
       </div>

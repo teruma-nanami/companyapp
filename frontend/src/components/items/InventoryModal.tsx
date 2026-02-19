@@ -1,7 +1,10 @@
 // src/components/items/InventoryModal.tsx
 import { useInventoryModal } from "../../hooks/item/useInventoryModal";
-import type { InventoryItem } from "../../types/inventoryItem";
-import type { InventoryTransactionType } from "../../types/inventoryTransaction";
+import type {
+  InventoryItem,
+  InventoryItemCreateInput,
+} from "../../types/inventoryItem";
+import type { InventoryStockInput } from "../../types/inventoryTransaction";
 
 type Props = {
   open: boolean;
@@ -14,19 +17,8 @@ type Props = {
 
   onClose: () => void;
 
-  onCreate: (input: {
-    sku?: string;
-    name: string;
-    quantity?: number;
-    is_active?: boolean;
-  }) => void;
-
-  onStock: (input: {
-    inventory_item_id: number;
-    type: Exclude<InventoryTransactionType, "adjust">;
-    quantity: number;
-    note?: string;
-  }) => void;
+  onCreate: (input: InventoryItemCreateInput) => void;
+  onStock: (input: InventoryStockInput) => void;
 
   onDelete: (itemId: number) => void;
 };

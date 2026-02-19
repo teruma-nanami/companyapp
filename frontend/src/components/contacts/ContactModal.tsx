@@ -28,13 +28,19 @@ export default function ContactModal({
     setAssignedUserId,
     setInternalNote,
     resetFromContact,
+    clearError,
     save,
   } = useContactDetails();
 
+  // openになった瞬間 or 別のcontactを開いた瞬間だけフォームを初期化する
   useEffect(() => {
-    if (!open || !contact) return;
+    if (!open) return;
+    if (!contact) return;
+
     resetFromContact(contact);
-  }, [open, contact, resetFromContact]);
+    clearError();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, contact?.id]);
 
   if (!open) return null;
   if (!contact) return null;
@@ -140,9 +146,9 @@ export default function ContactModal({
                 onChange={(e) => setStatus(e.target.value)}
                 disabled={saving}
               >
-                <option value="new">new</option>
-                <option value="open">open</option>
-                <option value="closed">closed</option>
+                <option value="new">新規</option>
+                <option value="in_progress">対応中</option>
+                <option value="closed">完了</option>
               </select>
             </div>
 

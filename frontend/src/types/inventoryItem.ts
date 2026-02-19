@@ -17,3 +17,16 @@ export type InventoryItem = {
   created_at: string;
   updated_at: string;
 };
+
+/**
+ * フォーム送信用（作成）
+ * - APIへ送る形に合わせる（id/created_at 等は送らない）
+ * - sku は「未入力なら送らない」運用なので optional
+ * - quantity は 0 のとき送らない運用なので optional
+ */
+export type InventoryItemCreateInput = {
+  sku?: string;
+  name: string;
+  quantity?: number;
+  is_active?: boolean;
+};

@@ -1,43 +1,23 @@
 // src/hooks/request/useDateRequest.ts
 import { useEffect, useState } from "react";
 import type { DateRequest, DateRequestSession } from "../../types/dateRequest";
+import { fetchJson } from "../../utils/http";
+import { readErrorMessage } from "../../utils/message";
+import { unwrapArray, unwrapData } from "../../utils/unwrap";
 import { useAuthToken } from "../useAuthToken";
 
-function readErrorMessage(res: Response): Promise<string> {
-  const ct = res.headers.get("content-type") ?? "";
-  const isJson = ct.includes("application/json");
+function translateDateRequestError(message: string): string {
+  const msg = message || "Request failed";
 
-  if (isJson) {
-    return res
-      .json()
-      .then((j: any) => {
-        const msg =
-          typeof j?.message === "string"
-            ? j.message
-            : `Request failed: ${res.status}`;
-
-        if (msg.includes("Date request overlaps")) {
-          return "この期間は、すでに申請（申請中/承認済み）があるため作成できません。日付をずらしてください。";
-        }
-
-        if (msg.includes("Authentication token is missing")) {
-          return "認証トークンがありません。ログインし直してください。";
-        }
-
-        return msg;
-      })
-      .catch(() => `Request failed: ${res.status}`);
+  if (msg.includes("Date request overlaps")) {
+    return "この期間は、すでに申請（申請中/承認済み）があるため作成できません。日付をずらしてください。";
   }
 
-  return res
-    .text()
-    .then((t) => {
-      if (t && t.includes("Date request overlaps")) {
-        return "この期間は、すでに申請（申請中/承認済み）があるため作成できません。日付をずらしてください。";
-      }
-      return t || `Request failed: ${res.status}`;
-    })
-    .catch(() => `Request failed: ${res.status}`);
+  if (msg.includes("Authentication token is missing")) {
+    return "認証トークンがありません。ログインし直してください。";
+  }
+
+  return msg;
 }
 
 export function useDateRequest() {
@@ -46,36 +26,35 @@ export function useDateRequest() {
   const [items, setItems] = useState<DateRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
   const [saving, setSaving] = useState(false);
+
+  function clear(): void {
+    setItems([]);
+    setError("");
+    setLoading(false);
+    setSaving(false);
+  }
+
+  function unwrapDateRequests(json: unknown): DateRequest[] {
+    // ApiController形式 { data, message } / 生配列 の両方を吸収
+    return unwrapArray<DateRequest>(json);
+  }
 
   function load(): void {
     if (!isAuthenticated) {
-      setItems([]);
+      clear();
       return;
     }
 
     setLoading(true);
     setError("");
 
-    authFetch("/api/date-requests", { method: "GET" })
-      .then((res) => {
-        if (!res.ok) {
-          return readErrorMessage(res).then((msg) => {
-            throw new Error(msg);
-          });
-        }
-        return res.json();
-      })
+    fetchJson(authFetch, "/api/date-requests", { method: "GET" })
       .then((json) => {
-        if (Array.isArray(json)) {
-          setItems(json as DateRequest[]);
-        } else {
-          setItems([]);
-        }
+        setItems(unwrapDateRequests(json));
       })
       .catch((e: any) => {
-        setError(e?.message ?? "failed to load");
+        setError(translateDateRequestError(e?.message ?? "failed to load"));
         setItems([]);
       })
       .finally(() => setLoading(false));
@@ -102,19 +81,20 @@ export function useDateRequest() {
         reason: input.reason,
       }),
     })
-      .then((res) => {
+      .then(async (res) => {
         if (!res.ok) {
-          return readErrorMessage(res).then((msg) => {
-            throw new Error(msg);
-          });
+          const msg = await readErrorMessage(res);
+          throw new Error(translateDateRequestError(msg));
         }
-        return res.json();
+        return (await res.json()) as unknown;
       })
-      .then(() => {
+      .then((json) => {
+        // created() が { data, message } の場合もあるので一応吸収（使わなくてもOK）
+        unwrapData<unknown>(json);
         load();
       })
       .catch((e: any) => {
-        setError(e?.message ?? "failed to create");
+        setError(translateDateRequestError(e?.message ?? "failed to create"));
         throw e;
       })
       .finally(() => {
@@ -124,17 +104,16 @@ export function useDateRequest() {
 
   useEffect(() => {
     if (isAuthenticated) load();
+    else clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
   return {
     isAuthenticated,
-
     items,
     loading,
     error,
     saving,
-
     load,
     create,
   };

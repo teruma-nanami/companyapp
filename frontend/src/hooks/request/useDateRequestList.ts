@@ -1,41 +1,13 @@
 // src/hooks/request/useDateRequestList.tsx
-import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState } from "react";
 import type { DateRequest } from "../../types/dateRequest";
-
-/**
- * ApiController の { data, message } 形式 / 生のJSON どっちでも受けられるようにする
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function unwrapData<T>(json: any): T {
-  if (json && typeof json === "object" && "data" in json) {
-    return json.data as T;
-  }
-  return json as T;
-}
-
-async function readErrorMessage(res: Response): Promise<string> {
-  const ct = res.headers.get("content-type") ?? "";
-  const isJson = ct.includes("application/json");
-
-  try {
-    if (isJson) {
-      const j = (await res.json()) as any;
-      return (
-        (typeof j?.message === "string" && j.message) ||
-        `Request failed: ${res.status}`
-      );
-    }
-    const t = await res.text();
-    return t || `Request failed: ${res.status}`;
-  } catch {
-    return `Request failed: ${res.status}`;
-  }
-}
+import { fetchJson } from "../../utils/http";
+import { readErrorMessage } from "../../utils/message";
+import { unwrapArray, unwrapData } from "../../utils/unwrap";
+import { useAuthToken } from "../useAuthToken";
 
 export function useDateRequestList() {
-  const { isAuthenticated, loginWithRedirect, getAccessTokenSilently } =
-    useAuth0();
+  const { isAuthenticated, loginWithRedirect, authFetch } = useAuthToken();
 
   const [items, setItems] = useState<DateRequest[]>([]);
   const [loading, setLoading] = useState(false);
@@ -83,27 +55,11 @@ export function useDateRequestList() {
     setLoading(true);
     setError("");
 
-    getAccessTokenSilently()
-      .then((token) => {
-        return fetch(LIST_URL, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(await readErrorMessage(res));
-        return res.json();
-      })
+    fetchJson(authFetch, LIST_URL, { method: "GET" })
       .then((json) => {
-        const data = unwrapData<unknown>(json);
-        if (Array.isArray(data)) {
-          setItems(data as DateRequest[]);
-        } else {
-          setItems([]);
-        }
+        // {data,message} / 生配列 どちらでもOKにする
+        const list = unwrapArray<DateRequest>(json);
+        setItems(list);
       })
       .catch((e: any) => {
         setError(e?.message ?? "failed to load");
@@ -122,23 +78,14 @@ export function useDateRequestList() {
     setError("");
     setModalError("");
 
-    getAccessTokenSilently()
-      .then((token) => {
-        return fetch(`/api/admin/date-requests/${id}/approve`, {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      })
+    authFetch(`/api/admin/date-requests/${id}/approve`, { method: "POST" })
       .then(async (res) => {
         if (!res.ok) throw new Error(await readErrorMessage(res));
 
         // 返却があれば反映。なければ一覧を再読込。
         const ct = res.headers.get("content-type") ?? "";
         if (ct.includes("application/json")) {
-          const json = await res.json();
+          const json = (await res.json()) as unknown;
           const updated = unwrapData<DateRequest>(json);
           patchItem(id, updated);
         } else {
@@ -163,26 +110,17 @@ export function useDateRequestList() {
     setError("");
     setModalError("");
 
-    getAccessTokenSilently()
-      .then((token) => {
-        return fetch(`/api/admin/date-requests/${id}/reject`, {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            rejected_reason: rejected_reason ?? "",
-          }),
-        });
-      })
+    authFetch(`/api/admin/date-requests/${id}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rejected_reason: rejected_reason ?? "" }),
+    })
       .then(async (res) => {
         if (!res.ok) throw new Error(await readErrorMessage(res));
 
         const ct = res.headers.get("content-type") ?? "";
         if (ct.includes("application/json")) {
-          const json = await res.json();
+          const json = (await res.json()) as unknown;
           const updated = unwrapData<DateRequest>(json);
           patchItem(id, updated);
         } else {
