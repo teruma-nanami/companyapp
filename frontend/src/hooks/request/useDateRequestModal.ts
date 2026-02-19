@@ -1,20 +1,21 @@
 // src/hooks/request/useDateRequestModal.ts
 import { useEffect, useState } from "react";
-import type { DateRequestSession } from "../../types/dateRequest";
+import type { DateRequest, DateRequestSession } from "../../types/dateRequest";
 
-export function useDateRequestModal(params: {
+type DateRequestCreateInput = Pick<
+  DateRequest,
+  "start_date" | "end_date" | "session" | "reason"
+>;
+
+type Params = {
   open: boolean;
   saving: boolean;
 
   onClose: () => void;
+  onSubmit: (input: DateRequestCreateInput) => void;
+};
 
-  onSubmit: (input: {
-    start_date: string; // YYYY-MM-DD
-    end_date: string; // YYYY-MM-DD
-    session: DateRequestSession;
-    reason: string;
-  }) => void;
-}) {
+export function useDateRequestModal(params: Params) {
   const { open, saving, onClose, onSubmit } = params;
 
   const [localError, setLocalError] = useState("");

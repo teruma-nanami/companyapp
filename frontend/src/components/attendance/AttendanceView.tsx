@@ -69,7 +69,7 @@ export default function AttendanceView({
   const btnSoftBlue = `${btnBase} border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100`;
 
   return (
-    <div className="bg-white from-slate-50 to-blue-50/40 p-6" bg-white-900>
+    <div className="bg-white from-slate-50 to-blue-50/40 p-6">
       <div className="mx-auto w-full max-w-[980px] space-y-5">
         <div className="flex items-end justify-between">
           <div>

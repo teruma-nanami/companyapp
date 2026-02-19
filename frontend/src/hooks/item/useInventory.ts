@@ -1,22 +1,13 @@
 // src/hooks/item/useInventory.ts
 import { useEffect, useState } from "react";
-import type { ApiEnvelope, Paginator } from "../../types/api";
 import type { InventoryItem } from "../../types/inventoryItem";
 import type {
   InventoryTransaction,
   InventoryTransactionType,
 } from "../../types/inventoryTransaction";
+import { fetchJson, fetchNoContent } from "../../utils/http";
+import { unwrapData } from "../../utils/unwrap";
 import { useAuthToken } from "../useAuthToken";
-
-function pickMessage(text: string): string {
-  try {
-    const obj = JSON.parse(text) as any;
-    if (obj && typeof obj.message === "string") return obj.message;
-  } catch {
-    // ignore
-  }
-  return text || "Request failed";
-}
 
 export function useInventory() {
   const { isAuthenticated, loginWithRedirect, authFetch } = useAuthToken();
@@ -50,17 +41,13 @@ export function useInventory() {
     setLoadingItems(true);
     setErrorItems("");
 
-    authFetch("/api/items", { method: "GET" })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(pickMessage(t) || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
-      .then((json: ApiEnvelope<Paginator<InventoryItem>>) => {
-        const list = json?.data?.data ?? [];
+    fetchJson(authFetch, "/api/items", { method: "GET" })
+      .then((json) => {
+        // { data: { data: [...] } } を unwrapData してから配列を拾う
+        const data = unwrapData<any>(json);
+        const list = Array.isArray(data?.data)
+          ? (data.data as InventoryItem[])
+          : [];
         setItems(list);
       })
       .catch((e: any) => {
@@ -82,17 +69,12 @@ export function useInventory() {
     setLoadingTx(true);
     setErrorTx("");
 
-    authFetch("/api/transactions", { method: "GET" })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(pickMessage(t) || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
-      .then((json: ApiEnvelope<Paginator<InventoryTransaction>>) => {
-        const list = json?.data?.data ?? [];
+    fetchJson(authFetch, "/api/transactions", { method: "GET" })
+      .then((json) => {
+        const data = unwrapData<any>(json);
+        const list = Array.isArray(data?.data)
+          ? (data.data as InventoryTransaction[])
+          : [];
         setTransactions(list);
       })
       .catch((e: any) => {
@@ -161,19 +143,11 @@ export function useInventory() {
     if (typeof input.is_active === "boolean")
       payload.is_active = input.is_active;
 
-    authFetch("/api/items", {
+    fetchJson(authFetch, "/api/items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(pickMessage(t) || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
       .then(() => {
         setOpenModal(false);
         setModalError("");
@@ -208,19 +182,11 @@ export function useInventory() {
     const note = String(input.note ?? "").trim();
     if (note) payload.note = note;
 
-    authFetch("/api/transactions", {
+    fetchJson(authFetch, "/api/transactions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(pickMessage(t) || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
       .then(() => {
         setOpenModal(false);
         setModalError("");
@@ -242,15 +208,7 @@ export function useInventory() {
     setModalError("");
     setErrorItems("");
 
-    authFetch(`/api/items/${itemId}`, { method: "DELETE" })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(pickMessage(t) || `Request failed: ${res.status}`);
-          });
-        }
-        return null;
-      })
+    fetchNoContent(authFetch, `/api/items/${itemId}`, { method: "DELETE" })
       .then(() => {
         setOpenModal(false);
         setModalError("");

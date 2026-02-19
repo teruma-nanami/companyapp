@@ -2,6 +2,8 @@
 import { useState } from "react";
 import type { Attendance } from "../../types/attendance";
 import type { BreakTime } from "../../types/breakTime";
+import { fetchJson } from "../../utils/http";
+import { unwrapArray, unwrapData } from "../../utils/unwrap";
 import { useAuthToken } from "../useAuthToken";
 
 export function useAttendanceActions() {
@@ -12,37 +14,13 @@ export function useAttendanceActions() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  function unwrapOkData<T>(json: any): T {
-    if (json && typeof json === "object" && "data" in json) {
-      return json.data as T;
-    }
-    return json as T;
-  }
-
-  function unwrapOkList<T>(json: any): T[] {
-    if (Array.isArray(json?.data)) return json.data as T[];
-    if (Array.isArray(json)) return json as T[];
-    return [];
-  }
-
-  function fetchJson(url: string, init?: RequestInit) {
-    return authFetch(url, init).then((res) => {
-      if (!res.ok) {
-        return res.text().then((text) => {
-          throw new Error(text || `Request failed: ${res.status}`);
-        });
-      }
-      return res.json() as Promise<any>;
-    });
-  }
-
   function reloadAll() {
     setLoading(true);
     setError("");
 
-    return fetchJson("/api/attendances/today")
+    return fetchJson(authFetch, "/api/attendances/today")
       .then((todayJson) => {
-        const a = unwrapOkData<Attendance | null>(todayJson);
+        const a = unwrapData<Attendance | null>(todayJson);
         setToday(a);
 
         if (!a?.id) {
@@ -50,12 +28,13 @@ export function useAttendanceActions() {
           return;
         }
 
-        return fetchJson(`/api/attendances/${a.id}/break-times`).then(
-          (breaksJson) => {
-            const list = unwrapOkList<BreakTime>(breaksJson);
-            setBreaks(list);
-          },
-        );
+        return fetchJson(
+          authFetch,
+          `/api/attendances/${a.id}/break-times`,
+        ).then((breaksJson) => {
+          const list = unwrapArray<BreakTime>(breaksJson);
+          setBreaks(list);
+        });
       })
       .catch((e: any) => {
         setError(e?.message ?? "failed to load");
@@ -71,7 +50,7 @@ export function useAttendanceActions() {
     setLoading(true);
     setError("");
 
-    return fetchJson("/api/attendances/check-in", { method: "POST" })
+    return fetchJson(authFetch, "/api/attendances/check-in", { method: "POST" })
       .then(() => reloadAll())
       .catch((e: any) => {
         setError(e?.message ?? "failed");
@@ -86,7 +65,9 @@ export function useAttendanceActions() {
     setLoading(true);
     setError("");
 
-    return fetchJson("/api/attendances/check-out", { method: "POST" })
+    return fetchJson(authFetch, "/api/attendances/check-out", {
+      method: "POST",
+    })
       .then(() => reloadAll())
       .catch((e: any) => {
         setError(e?.message ?? "failed");
@@ -106,7 +87,7 @@ export function useAttendanceActions() {
     setLoading(true);
     setError("");
 
-    return fetchJson("/api/break-times/start", {
+    return fetchJson(authFetch, "/api/break-times/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -139,7 +120,7 @@ export function useAttendanceActions() {
     setLoading(true);
     setError("");
 
-    return fetchJson(`/api/break-times/${active.id}/end`, {
+    return fetchJson(authFetch, `/api/break-times/${active.id}/end`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

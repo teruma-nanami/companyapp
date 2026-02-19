@@ -33,11 +33,7 @@ export default function AttendancePage() {
     items,
     loading: listLoading,
     error: listError,
-    page,
-    lastPage,
-    total,
     load,
-    setPage,
   } = useAttendanceLists();
 
   // モーダル制御
@@ -48,8 +44,7 @@ export default function AttendancePage() {
     if (!isAuthenticated) return;
 
     void reloadAll();
-    setPage(1);
-    void load(1);
+    void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
@@ -58,15 +53,6 @@ export default function AttendancePage() {
 
   async function handleReloadAll() {
     await reloadAll();
-    await load(page);
-  }
-
-  function handleGoPage(p: number) {
-    if (p < 1) return;
-    if (lastPage && p > lastPage) return;
-
-    setPage(p);
-    void load(p);
   }
 
   function openTimeRequestModal(attendance: Attendance) {
@@ -82,7 +68,7 @@ export default function AttendancePage() {
   async function handleSubmitted() {
     // 申請成功後：今日と一覧を再取得
     await reloadAll();
-    await load(page);
+    await load();
   }
 
   return (
@@ -107,11 +93,7 @@ export default function AttendancePage() {
         items={items}
         loading={listLoading}
         error={listError}
-        page={page}
-        lastPage={lastPage}
-        total={total}
-        onReload={() => void load(page)}
-        onGoPage={(p) => handleGoPage(p)}
+        onReload={() => void load()}
         onOpenTimeRequest={(a) => openTimeRequestModal(a)}
       />
 

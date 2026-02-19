@@ -24,3 +24,15 @@ export type InventoryTransaction = {
   item?: { id: number; name: string; sku: string | null } | null;
   user?: { id: number; name?: string | null; email?: string | null } | null;
 };
+
+/**
+ * フォーム送信用（入出庫）
+ * - adjust は別用途想定なので、この画面では除外
+ * - note は未入力なら送らない運用なので optional
+ */
+export type InventoryStockInput = {
+  inventory_item_id: number;
+  type: Exclude<InventoryTransactionType, "adjust">;
+  quantity: number;
+  note?: string;
+};

@@ -1,26 +1,14 @@
 // src/hooks/contact/useContact.ts
 import { useState } from "react";
-
-type ContactFormValues = {
-  name: string;
-  email: string;
-  subject: string;
-  category: string; // "bug" | "request" | "other" を想定（厳密化は今はしない）
-  message: string;
-};
-
-function pickMessage(text: string): string {
-  try {
-    const obj = JSON.parse(text) as any;
-    if (obj && typeof obj.message === "string") return obj.message;
-  } catch {
-    // ignore
-  }
-  return text || "Request failed";
-}
+import type { Contact } from "../../types/contact";
+import { readErrorMessage } from "../../utils/message";
+type ContactForm = Pick<
+  Contact,
+  "name" | "email" | "subject" | "category" | "message"
+>;
 
 export function useContact() {
-  const [values, setValues] = useState<ContactFormValues>({
+  const [values, setValues] = useState<ContactForm>({
     name: "",
     email: "",
     subject: "",
@@ -32,7 +20,7 @@ export function useContact() {
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function setField(key: keyof ContactFormValues, value: string) {
+  function setField(key: keyof ContactForm, value: string) {
     setValues((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -46,7 +34,7 @@ export function useContact() {
     });
   }
 
-  function validate(v: ContactFormValues): string | null {
+  function validate(v: ContactForm): string | null {
     if (!v.name.trim()) return "お名前を入力してください。";
     if (!v.email.trim()) return "メールアドレスを入力してください。";
     if (!v.subject.trim()) return "件名を入力してください。";
@@ -83,14 +71,14 @@ export function useContact() {
         message: values.message.trim(),
       }),
     })
-      .then((res) => {
-        if (res.ok) {
-          // JSON返却があっても無くても壊れないように
-          return res.text().then(() => null);
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(await readErrorMessage(res));
         }
-        return res.text().then((t) => {
-          throw new Error(pickMessage(t));
-        });
+
+        // JSON返却があっても無くても壊れないように（捨てる）
+        await res.text();
+        return null;
       })
       .then(() => {
         setSuccess("送信しました。");

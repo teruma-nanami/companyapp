@@ -1,28 +1,12 @@
 // src/hooks/profile/useProfile.ts
-import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState } from "react";
-import type { ApiEnvelope } from "../../types/api";
 import type { User } from "../../types/user";
-
-function pickMessage(text: string): string {
-  try {
-    const obj = JSON.parse(text) as any;
-    if (obj && typeof obj.message === "string") return obj.message;
-  } catch {
-    // ignore
-  }
-  return text || "Request failed";
-}
-
-function unwrapUser(json: ApiEnvelope<User> | User): User | null {
-  const u = (json as any)?.data ?? json;
-  if (!u || typeof u !== "object") return null;
-  return u as User;
-}
+import { fetchJson } from "../../utils/http";
+import { unwrapData } from "../../utils/unwrap";
+import { useAuthToken } from "../useAuthToken";
 
 export function useProfile() {
-  const { isAuthenticated, loginWithRedirect, getAccessTokenSilently } =
-    useAuth0();
+  const { isAuthenticated, loginWithRedirect, authFetch } = useAuthToken();
 
   const [me, setMe] = useState<User | null>(null);
 
@@ -42,11 +26,18 @@ export function useProfile() {
     setDisplayName(String(user?.display_name ?? ""));
   }
 
+  function clearAll(): void {
+    setMe(null);
+    applyUserToForm(null);
+    setError("");
+    setSaveError("");
+    setSaveOk("");
+  }
+
   function load(): void {
     if (!isAuthenticated) {
       setError("ログインが必要です（/api/profile は認証必須）");
-      setMe(null);
-      applyUserToForm(null);
+      clearAll();
       return;
     }
 
@@ -55,33 +46,18 @@ export function useProfile() {
     setSaveError("");
     setSaveOk("");
 
-    getAccessTokenSilently()
-      .then((token) => {
-        return fetch("/api/profile", {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(pickMessage(t) || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
-      .then((json: ApiEnvelope<User> | User) => {
-        const user = unwrapUser(json);
-        setMe(user);
-        applyUserToForm(user);
+    fetchJson(authFetch, "/api/profile", { method: "GET" })
+      .then((json) => {
+        const user = unwrapData<User | null>(json);
+        const u =
+          user && typeof user === "object" ? (user as User) : (null as null);
+
+        setMe(u);
+        applyUserToForm(u);
       })
       .catch((e: any) => {
         setError(e?.message ?? "failed to load");
-        setMe(null);
-        applyUserToForm(null);
+        clearAll();
       })
       .finally(() => {
         setLoading(false);
@@ -126,34 +102,22 @@ export function useProfile() {
     setSaveOk("");
     setError("");
 
-    getAccessTokenSilently()
-      .then((token) => {
-        return fetch("/api/profile", {
-          method: "PUT",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            email: e,
-            display_name: d,
-          }),
-        });
-      })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(pickMessage(t) || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
-      .then((json: ApiEnvelope<User> | User) => {
-        const user = unwrapUser(json);
-        if (user) {
-          setMe(user);
-          applyUserToForm(user);
+    fetchJson(authFetch, "/api/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: e,
+        display_name: d,
+      }),
+    })
+      .then((json) => {
+        const user = unwrapData<User | null>(json);
+        const u =
+          user && typeof user === "object" ? (user as User) : (null as null);
+
+        if (u) {
+          setMe(u);
+          applyUserToForm(u);
         }
         setSaveOk("保存しました。");
       })
@@ -166,6 +130,10 @@ export function useProfile() {
   }
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      clearAll();
+      return;
+    }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);

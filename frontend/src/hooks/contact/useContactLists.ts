@@ -1,78 +1,85 @@
-// src/hooks/contacts/useContactLists.ts
-import { useEffect, useMemo, useState } from "react";
+// src/hooks/contact/useContactLists.ts
+import { useEffect, useState } from "react";
 import type { Contact } from "../../types/contact";
+import { fetchJson } from "../../utils/http";
+import { unwrapData } from "../../utils/unwrap";
+import { useAuthToken } from "../useAuthToken";
 
-type BadgeKind = "category" | "status";
+/**
+ * 取得結果の吸収（paginate / ok形式 / 生）
+ * - paginate: { data: { data: [...] } }
+ * - ok形式: { data: [...] }
+ * - 生: [...]
+ */
+function unwrapContacts(json: unknown): Contact[] {
+  const data = unwrapData<unknown>(json);
 
-export function useContactLists(items: Contact[]) {
-  const [viewItems, setViewItems] = useState<Contact[]>(items);
-
-  const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<Contact | null>(null);
-
-  useEffect(() => {
-    setViewItems(items);
-  }, [items]);
-
-  function openModal(contact: Contact) {
-    setSelected(contact);
-    setOpen(true);
+  // paginate: data が object で inner.data が配列
+  if (data && typeof data === "object" && "data" in (data as any)) {
+    const inner = (data as any).data;
+    if (Array.isArray(inner)) return inner as Contact[];
   }
 
-  function closeModal() {
-    setOpen(false);
-    setSelected(null);
+  // ok形式 or 生配列
+  return Array.isArray(data) ? (data as Contact[]) : [];
+}
+
+/**
+ * ContactListページ用（一覧取得）
+ */
+export function useContactLists() {
+  const { isAuthenticated, loginWithRedirect, authFetch } = useAuthToken();
+
+  const [items, setItems] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  function clear() {
+    setItems([]);
+    setError("");
   }
 
-  function applyUpdated(updated: Contact) {
-    setViewItems((prev) =>
-      prev.map((c) => (c.id === updated.id ? updated : c)),
-    );
-    setSelected(updated);
-  }
-
-  function categoryLabel(category: string): string {
-    if (category === "bug") return "不具合";
-    if (category === "request") return "要望";
-    if (category === "other") return "その他";
-    return category;
-  }
-
-  function statusLabel(status: string): string {
-    if (status === "new") return "新規";
-    if (status === "open") return "対応中";
-    if (status === "closed") return "完了";
-    return status;
-  }
-
-  function badgeClass(kind: BadgeKind, value: string): string {
-    if (kind === "category") {
-      if (value === "bug") return "bg-red-50 text-red-700 ring-red-200";
-      if (value === "request") return "bg-blue-50 text-blue-700 ring-blue-200";
-      return "bg-slate-100 text-slate-700 ring-slate-200";
+  function load() {
+    if (!isAuthenticated) {
+      setError("ログインが必要です（/api/contacts は認証必須）");
+      setItems([]);
+      return;
     }
 
-    if (value === "new") return "bg-amber-50 text-amber-700 ring-amber-200";
-    if (value === "open") return "bg-indigo-50 text-indigo-700 ring-indigo-200";
-    if (value === "closed")
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
-    return "bg-slate-100 text-slate-700 ring-slate-200";
+    setLoading(true);
+    setError("");
+
+    fetchJson(authFetch, "/api/contacts", { method: "GET" })
+      .then((json) => {
+        setItems(unwrapContacts(json));
+      })
+      .catch((e: any) => {
+        setError(e?.message ?? "failed to load");
+        setItems([]);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }
 
-  const count = useMemo(() => viewItems.length, [viewItems]);
+  useEffect(() => {
+    if (!isAuthenticated) {
+      clear();
+      return;
+    }
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   return {
-    viewItems,
-    count,
+    isAuthenticated,
+    loginWithRedirect,
 
-    open,
-    selected,
-    openModal,
-    closeModal,
-    applyUpdated,
+    items,
+    loading,
+    error,
 
-    categoryLabel,
-    statusLabel,
-    badgeClass,
+    load,
+    clear,
   };
 }

@@ -1,22 +1,9 @@
 // src/hooks/useTasks.ts
 import { useState } from "react";
 import type { Task } from "../../types/task";
+import { fetchJson, fetchNoContent } from "../../utils/http";
+import { unwrapArray } from "../../utils/unwrap";
 import { useAuthToken } from "../useAuthToken";
-
-type ApiEnvelope<T> = {
-  data: T;
-  message: string;
-};
-
-function pickMessage(text: string): string {
-  try {
-    const obj = JSON.parse(text) as any;
-    if (obj && typeof obj.message === "string") return obj.message;
-  } catch {
-    // ignore
-  }
-  return text || "Request failed";
-}
 
 export function useTasks(isAuthenticated: boolean) {
   const { authFetch } = useAuthToken();
@@ -25,6 +12,11 @@ export function useTasks(isAuthenticated: boolean) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  function clear(): void {
+    setItems([]);
+    setError("");
+  }
 
   function load(): void {
     if (!isAuthenticated) {
@@ -36,17 +28,11 @@ export function useTasks(isAuthenticated: boolean) {
     setLoading(true);
     setError("");
 
-    authFetch("/api/tasks", { method: "GET" })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(pickMessage(t) || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
-      .then((json: ApiEnvelope<Task[]>) => {
-        setItems(json?.data ?? []);
+    fetchJson(authFetch, "/api/tasks", { method: "GET" })
+      .then((json) => {
+        // ApiController形式 { data, message } でも、生配列でも吸収
+        const list = unwrapArray<Task>(json);
+        setItems(list);
       })
       .catch((e: any) => {
         setError(e?.message ?? "failed to load");
@@ -68,9 +54,9 @@ export function useTasks(isAuthenticated: boolean) {
       title: string;
       description?: string;
       due_date?: string;
-      status: string;
+      status: Task["status"];
     } = {
-      title: input.title,
+      title: String(input.title ?? "").trim(),
       status: "todo",
     };
 
@@ -79,24 +65,24 @@ export function useTasks(isAuthenticated: boolean) {
 
     if (input.due_date) payload.due_date = input.due_date;
 
+    if (!payload.title) {
+      setError("タイトルは必須です。");
+      return Promise.resolve();
+    }
+
     setSaving(true);
     setError("");
 
-    return authFetch("/api/tasks", {
+    return fetchJson(authFetch, "/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(pickMessage(t) || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
       .then(() => {
         load();
+      })
+      .catch((e: any) => {
+        setError(e?.message ?? "failed to create");
       })
       .finally(() => {
         setSaving(false);
@@ -117,19 +103,11 @@ export function useTasks(isAuthenticated: boolean) {
     setSaving(true);
     setError("");
 
-    return authFetch(`/api/tasks/${task.id}`, {
+    return fetchJson(authFetch, `/api/tasks/${task.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(pickMessage(t) || `Request failed: ${res.status}`);
-          });
-        }
-        return res.json();
-      })
       .then(() => {
         load();
       })
@@ -147,15 +125,9 @@ export function useTasks(isAuthenticated: boolean) {
     setSaving(true);
     setError("");
 
-    return authFetch(`/api/tasks/${taskId}`, { method: "DELETE" })
-      .then((res) => {
-        if (!res.ok) {
-          return res.text().then((t) => {
-            throw new Error(pickMessage(t) || `Request failed: ${res.status}`);
-          });
-        }
-        return null;
-      })
+    return fetchNoContent(authFetch, `/api/tasks/${taskId}`, {
+      method: "DELETE",
+    })
       .then(() => {
         load();
       })
@@ -173,6 +145,8 @@ export function useTasks(isAuthenticated: boolean) {
     saving,
     error,
     setError,
+
+    clear,
     load,
     create,
     updateStatus,
